@@ -15,7 +15,7 @@ menuBtn.addEventListener('click', () => {
   }
 });
 
-// Fecha o menu ao clicar em um link
+// Fecha o menu ao clicar em um link ou fora dele
 document.querySelectorAll('.nav-links a').forEach(link => {
   link.addEventListener('click', () => {
     navLinks.classList.remove('active');
@@ -24,7 +24,20 @@ document.querySelectorAll('.nav-links a').forEach(link => {
   });
 });
 
-// Smooth Scrolling para navegação
+// Fechar o menu ao clicar fora dele
+document.addEventListener('click', (e) => {
+  if (
+    navLinks.classList.contains('active') &&
+    !e.target.closest('.nav-links') &&
+    !e.target.closest('.mobile-menu-btn')
+  ) {
+    navLinks.classList.remove('active');
+    menuBtn.classList.remove('active');
+    body.style.overflow = 'auto';
+  }
+});
+
+// Smooth Scrolling para navegação com compensação de header
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
   anchor.addEventListener('click', function (e) {
     e.preventDefault();
@@ -52,83 +65,188 @@ window.addEventListener('scroll', () => {
   header.classList.toggle('scrolled', window.scrollY > 50);
 });
 
-// Form Submission com validação melhorada
-const contactForm = document.getElementById('contactForm');
+// Sistema completo de validação de formulário
+document.addEventListener('DOMContentLoaded', function () {
+  const contactForm = document.getElementById('contactForm');
 
-contactForm.addEventListener('submit', function (e) {
-  e.preventDefault();
-
-  // Validação básica
-  const name = document.getElementById('name');
-  const email = document.getElementById('email');
-  const phone = document.getElementById('phone');
-  const service = document.getElementById('service');
-  const message = document.getElementById('message');
-
-  let isValid = true;
-
-  // Verifica cada campo
-  [name, email, phone, service, message].forEach(field => {
-    if (!field.value.trim()) {
-      field.style.borderColor = '#ff3860';
-      isValid = false;
-    } else {
-      field.style.borderColor = '#dbdbdb';
+  // Cria mensagens de erro para cada campo
+  const formGroups = contactForm.querySelectorAll('.form-group');
+  formGroups.forEach(group => {
+    const input = group.querySelector('input, textarea, select');
+    if (input) {
+      const errorMessage = document.createElement('div');
+      errorMessage.className = 'error-message';
+      group.appendChild(errorMessage);
     }
   });
 
-  // Verificação de email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email.value) && email.value.trim()) {
-    email.style.borderColor = '#ff3860';
-    isValid = false;
-  }
+  // Adiciona botão de loading
+  const submitButton = contactForm.querySelector('button[type="submit"]');
+  const buttonWrapper = document.createElement('div');
+  buttonWrapper.className = 'form-button-wrapper';
+  const loadingSpinner = document.createElement('div');
+  loadingSpinner.className = 'loading-spinner';
 
-  if (isValid) {
-    // Format message for WhatsApp
-    let whatsappMessage = `*Olá! Tenho interesse em seus serviços de nutrição!*%0A%0A`;
-    whatsappMessage += `*Nome:* ${name.value}%0A`;
-    whatsappMessage += `*Email:* ${email.value}%0A`;
-    whatsappMessage += `*Telefone:* ${phone.value}%0A`;
-    whatsappMessage += `*Serviço de Interesse:* ${service.value}%0A`;
-    whatsappMessage += `*Mensagem:* ${message.value}%0A`;
+  // Substitui o botão pelo wrapper com spinner
+  submitButton.parentNode.insertBefore(buttonWrapper, submitButton);
+  buttonWrapper.appendChild(submitButton);
+  buttonWrapper.appendChild(loadingSpinner);
 
-    // Create WhatsApp URL
-    const whatsappURL = `https://wa.me/5548991056014?text=${whatsappMessage}`;
+  // Validação em tempo real nos campos
+  const inputs = contactForm.querySelectorAll('input, textarea, select');
 
-    // Open WhatsApp in new tab
-    window.open(whatsappURL, '_blank');
-
-    // Reset form and borders
-    contactForm.reset();
-    [name, email, phone, service, message].forEach(field => {
-      field.style.borderColor = '#dbdbdb';
+  inputs.forEach(input => {
+    // Validação ao perder o foco
+    input.addEventListener('blur', () => {
+      validateField(input);
     });
-  }
-});
 
-// Adiciona feedback visual nos campos do formulário
-const formInputs = document.querySelectorAll('.form-group input, .form-group textarea, .form-group select');
+    // Validação enquanto digita (após primeira validação)
+    input.addEventListener('input', () => {
+      if (input.classList.contains('error') || input.classList.contains('valid')) {
+        validateField(input);
+      }
+    });
 
-formInputs.forEach(input => {
-  input.addEventListener('focus', () => {
-    input.parentElement.classList.add('focused');
+    // Destaca o campo ao focar
+    input.addEventListener('focus', () => {
+      input.parentElement.classList.add('focused');
+    });
+
+    input.addEventListener('blur', () => {
+      input.parentElement.classList.remove('focused');
+    });
   });
 
-  input.addEventListener('blur', () => {
-    input.parentElement.classList.remove('focused');
+  // Função de validação de campos individuais
+  function validateField(field) {
+    const errorElement = field.parentElement.querySelector('.error-message');
+    let isValid = true;
+    let errorMessage = '';
 
-    // Adiciona classe se o campo tem valor
-    if (input.value.trim() !== '') {
-      input.classList.add('has-value');
+    // Remove classes anteriores
+    field.classList.remove('error', 'valid');
+
+    // Validação de campo vazio
+    if (field.required && !field.value.trim()) {
+      isValid = false;
+      errorMessage = 'Este campo é obrigatório';
+    }
+    // Validações específicas por tipo
+    else if (field.value.trim()) {
+      // Validação de email
+      if (field.type === 'email') {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(field.value)) {
+          isValid = false;
+          errorMessage = 'Digite um email válido';
+        }
+      }
+
+      // Validação de telefone (aceita formatos brasileiros)
+      if (field.id === 'phone') {
+        const phoneRegex = /^(\(\d{2}\)|\d{2})[- ]?[9]?\d{4}[- ]?\d{4}$/;
+        if (!phoneRegex.test(field.value.replace(/\s+/g, ''))) {
+          isValid = false;
+          errorMessage = 'Digite um telefone válido';
+        }
+      }
+
+      // Validação de tamanho mínimo para mensagem
+      if (field.id === 'message' && field.value.length < 10) {
+        isValid = false;
+        errorMessage = 'A mensagem deve ter pelo menos 10 caracteres';
+      }
+    }
+
+    // Aplica resultado da validação
+    if (!isValid) {
+      field.classList.add('error');
+      errorElement.textContent = errorMessage;
+      errorElement.classList.add('visible');
     } else {
-      input.classList.remove('has-value');
+      field.classList.add('valid');
+      errorElement.classList.remove('visible');
+    }
+
+    return isValid;
+  }
+
+  // Validação no envio do formulário
+  contactForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    let formValid = true;
+
+    // Valida todos os campos
+    inputs.forEach(input => {
+      const fieldValid = validateField(input);
+      if (!fieldValid) {
+        formValid = false;
+      }
+    });
+
+    // Se formulário válido, processa o envio
+    if (formValid) {
+      // Mostra loading
+      buttonWrapper.classList.add('loading');
+
+      // Formata mensagem para WhatsApp
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const phone = document.getElementById('phone').value;
+      const service = document.getElementById('service').value;
+      const message = document.getElementById('message').value;
+
+      let whatsappMessage = `*Olá! Tenho interesse em seus serviços de nutrição!*%0A%0A`;
+      whatsappMessage += `*Nome:* ${name}%0A`;
+      whatsappMessage += `*Email:* ${email}%0A`;
+      whatsappMessage += `*Telefone:* ${phone}%0A`;
+      whatsappMessage += `*Serviço de Interesse:* ${service}%0A`;
+      whatsappMessage += `*Mensagem:* ${message}%0A`;
+
+      // Simula um pequeno delay para mostrar o loading (pode remover em produção)
+      setTimeout(() => {
+        // Cria URL do WhatsApp
+        const whatsappURL = `https://wa.me/5548991056014?text=${whatsappMessage}`;
+
+        // Abre WhatsApp em nova aba
+        window.open(whatsappURL, '_blank');
+
+        // Remove loading
+        buttonWrapper.classList.remove('loading');
+
+        // Reseta formulário
+        contactForm.reset();
+        inputs.forEach(input => {
+          input.classList.remove('valid', 'error');
+          const errorElement = input.parentElement.querySelector('.error-message');
+          if (errorElement) {
+            errorElement.classList.remove('visible');
+          }
+        });
+
+        // Feedback de sucesso (opcional)
+        alert('Mensagem enviada com sucesso! Você será redirecionado para o WhatsApp.');
+      }, 800);
+    } else {
+      // Scroll até o primeiro campo com erro
+      const firstError = contactForm.querySelector('.error');
+      if (firstError) {
+        const headerHeight = document.querySelector('header').offsetHeight;
+        const targetPosition = firstError.getBoundingClientRect().top;
+        const offsetPosition = targetPosition + window.pageYOffset - headerHeight - 20;
+
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
+      }
     }
   });
 });
 
 // Animação de elementos quando scrollar para eles
-// Função para verificar se um elemento está visível na tela
 function isElementInViewport(el) {
   const rect = el.getBoundingClientRect();
   return (
@@ -137,7 +255,6 @@ function isElementInViewport(el) {
   );
 }
 
-// Função para adicionar a classe 'visible' quando o elemento entra no viewport
 function handleScrollAnimation() {
   const elements = document.querySelectorAll('.service-box, .testimonial-box, .about-img, .about-text');
 
@@ -148,12 +265,27 @@ function handleScrollAnimation() {
   });
 }
 
-// Adicionar ouvinte de eventos para scroll
+// Tratamento de scroll e resize para animações
 window.addEventListener('scroll', handleScrollAnimation);
+window.addEventListener('resize', handleScrollAnimation);
 window.addEventListener('load', handleScrollAnimation);
 
-// Ativar animações apenas quando as seções estiverem visíveis
+// Inicializa animações quando o DOM estiver pronto
 document.addEventListener('DOMContentLoaded', function () {
-  // Inicializa a verificação de visibilidade para todos os elementos
   handleScrollAnimation();
+
+  // Prevenção adicional de scroll horizontal
+  function checkOverflow() {
+    const bodyWidth = document.body.offsetWidth;
+    const windowWidth = window.innerWidth;
+
+    if (bodyWidth > windowWidth) {
+      console.log('Overflow detected:', bodyWidth - windowWidth + 'px');
+      // Aqui você poderia adicionar código para diagnosticar o elemento que causa overflow
+    }
+  }
+
+  // Verifica overflow após o carregamento
+  setTimeout(checkOverflow, 1000);
+  window.addEventListener('resize', checkOverflow);
 });
